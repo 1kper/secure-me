@@ -1,11 +1,35 @@
 //jshint esversion:6
 const express = require("express");
 const bodyParser = require("body-parser");
+// const express = require('express');
+const path = require('path');
+// const favicon = require('serve-favicon');
+const logger = require('morgan');
+const cookieParser = require('cookie-parser');
+// const session = require('cookie-session');
+// const bodyParser = require('body-parser');
 
-const mongoose = require("mongoose");
+// const mongoose = require('mongoose');
+// const passport = require('passport');
+// const LocalStrategy = require('passport-local').Strategy;
+const flash = require('connect-flash');
+
+
+// const mongoose = require("mongoose");
 const Router = require("./routes")
+// const flash = require('connect-flash');
+
 
 const app = express();
+
+
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended: false}));
+app.use(cookieParser());
+app.use(flash());
+
+
 app.use(express.json());
 app.use(express.static("public"));
 app.use(bodyParser.urlencoded({
@@ -14,17 +38,6 @@ app.use(bodyParser.urlencoded({
 app.set('view engine', 'ejs');
 
 
-mongoose.connect('mongodb://localhost:27017/userDb',
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  }
-);
-const db = mongoose.connection;
-db.on("error", console.error.bind(console, "connection error: "));
-db.once("open", function () {
-  console.log("Connected successfully to userDb");
-});
 
 
 
