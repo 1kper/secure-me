@@ -8,6 +8,8 @@ const app = express();
 const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose =require("passport-local-mongoose");
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate = require('mongoose-findorcreate');
 
 app.use(session({
   secret:"Our little secret.",
@@ -41,10 +43,15 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     // required: true,
-  }
+  },
+
+  secret:{type:String},
+
+  googleId:{type:String,}
 });
 ////////////////////////////////////////////////////////
 userSchema.plugin(passportLocalMongoose);
+userSchema.plugin(findOrCreate);
 
 
 // userSchema.plugin(encrypt,{secret:process.env.SECRET, encryptedFields:["password"]});
@@ -59,10 +66,35 @@ const User = new mongoose.model("User", userSchema);
 // passport.serializeUser(User.serializeUser());
 // passport.deserializeUser(User.deserializeUser());
 // CHANGE: USE "createStrategy" INSTEAD OF "authenticate"
-passport.use(User.createStrategy());
+
+
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(user, done) {
+  done(null, user);
+});
+
 
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
+passport.use(User.createStrategy());
+
+
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLEAUTHID,
+    clientSecret: process.env.GOOGLESECRETS,
+    callbackURL: "http://localhost:3000/auth/google/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+   console.log(profile);
+    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 
 
@@ -116,7 +148,24 @@ const getModel = (collectionName) => {
 app.route("/")
   .get((req, res) => {
            res.render("home");});
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+ app.get("/auth/google",
+  passport.authenticate('google', { scope: ['profile'] }));
+
+
+  app.get("/auth/google/secrets",
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    function(req, res) {
+      // Successful authentication, redirect home.
+      res.redirect('/secrets');
+    });
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
 ////////////////////////////////////////////////routes for /home path of url////////////////////////////////////
 app.route("/home")
   .get((req, res) => {
@@ -166,9 +215,19 @@ app.route("/register")
 
 app.route("/secrets")
        .get((req,res)=>{
+         User.find({"secret":{$ne: null}},(err,foundUsers) =>{
 
-                    if(req.isAuthenticated()){res.render("secrets")}
-                    else{res.redirect("/login")};
+                  if(err){console.log(err)}
+                  else{
+                    if(foundUsers){res.render("secrets",{userWithSecret:foundUsers});}
+                  }
+
+             }
+
+       )
+
+                    // if(req.isAuthenticated()){res.render("secrets")}
+                    // else{res.redirect("/login")};
 
        })
 
@@ -230,7 +289,33 @@ app.route("/secrets")
 //////////////////////////////routes for / submit path of url////////////////////////////////////
 app.route("/submit")
   .get((req, res) => {
-           res.render("submit");});
+    if(req.isAuthenticated()){res.render("submit")}
+    else{res.redirect("/login")};})
+
+
+
+    .post((req, res) => {
+       const submittedSecret =req.body.secret;
+       console.log(req.user._id);
+
+       if(req.isAuthenticated()){ User.findById(req.user._id,(err,foundUser)=>{
+
+         if(err){console.log(err)}
+         else{if(foundUser){
+           console.log(foundUser);
+           foundUser.secret=submittedSecret;
+           foundUser.save();
+           res.redirect("/secrets");
+         }}
+
+        })}
+       else{res.redirect("/login")};
+
+
+
+      });
+
+
 ///////////////////////////////routes for logout path of url////////////////////////////////////
 app.route("/logout")
   .get((req,res)=>{
